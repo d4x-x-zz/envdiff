@@ -1,5 +1,7 @@
 package differ
 
+import "sort"
+
 // Kind describes the type of difference found between two env maps.
 type Kind string
 
@@ -18,6 +20,7 @@ type Result struct {
 }
 
 // Diff compares two env maps and returns all differences.
+// Results are returned in sorted order by key for deterministic output.
 func Diff(left, right map[string]string) []Result {
 	var results []Result
 
@@ -50,6 +53,10 @@ func Diff(left, right map[string]string) []Result {
 			})
 		}
 	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Key < results[j].Key
+	})
 
 	return results
 }
