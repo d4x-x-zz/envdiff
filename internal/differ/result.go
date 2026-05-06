@@ -28,3 +28,23 @@ func (r Result) Clean() bool {
 func (r Result) TotalIssues() int {
 	return len(r.MissingInRight) + len(r.MissingInLeft) + len(r.Mismatched)
 }
+
+// AllKeys returns a deduplicated, sorted list of all keys involved in any difference.
+func (r Result) AllKeys() []string {
+	seen := make(map[string]struct{})
+	for _, k := range r.MissingInRight {
+		seen[k] = struct{}{}
+	}
+	for _, k := range r.MissingInLeft {
+		seen[k] = struct{}{}
+	}
+	for _, e := range r.Mismatched {
+		seen[e.Key] = struct{}{}
+	}
+	keys := make([]string, 0, len(seen))
+	for k := range seen {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
