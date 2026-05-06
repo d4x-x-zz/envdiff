@@ -1,50 +1,51 @@
 package differ
 
-// Result holds the outcome of diffing two env maps.
+// Side indicates which file a key is missing from.
+type Side string
+
+const (
+	SideLeft  Side = "left"
+	SideRight Side = "right"
+)
+
+// Diff represents a single key difference between two env files.
+type Diff struct {
+	Key      string
+	Side     Side   // populated for missing keys
+	LeftVal  string // populated for mismatched keys
+	RightVal string // populated for mismatched keys
+}
+
+// Result holds the full comparison output between two env files.
 type Result struct {
-	// MissingInRight contains keys present in left but absent in right.
-	MissingInRight []string
-	// MissingInLeft contains keys present in right but absent in left.
-	MissingInLeft []string
-	// Mismatched contains keys present in both files but with different values.
-	Mismatched []MismatchEntry
+	Missing    []Diff
+	Mismatched []Diff
 }
 
-// MismatchEntry records a key whose value differs between files.
-type MismatchEntry struct {
-	Key        string
-	LeftValue  string
-	RightValue string
+// Clean returns true when there are no differences.
+func (r *Result) Clean() bool {
+	return len(r.Missing) == 0 && len(r.Mismatched) == 0
 }
 
-// Clean returns true when there are no differences of any kind.
-func (r Result) Clean() bool {
-	return len(r.MissingInRight) == 0 &&
-		len(r.MissingInLeft) == 0 &&
-		len(r.Mismatched) == 0
+// TotalIssues returns the combined count of missing and mismatched keys.
+func (r *Result) TotalIssues() int {
+	return len(r.Missing) + len(r.Mismatched)
 }
 
-// TotalIssues returns the total count of all detected differences.
-func (r Result) TotalIssues() int {
-	return len(r.MissingInRight) + len(r.MissingInLeft) + len(r.Mismatched)
+// MissingKeys returns only the keys that are absent from one side.
+func (r *Result) MissingKeys() []string {
+	keys := make([]string, 0, len(r.Missing))
+	for _, d := range r.Missing {
+		keys = append(keys, d.Key)
+	}
+	return keys
 }
 
-// AllKeys returns a deduplicated, sorted list of all keys involved in any difference.
-func (r Result) AllKeys() []string {
-	seen := make(map[string]struct{})
-	for _, k := range r.MissingInRight {
-		seen[k] = struct{}{}
+// MismatchedKeys returns only the keys whose values differ.
+func (r *Result) MismatchedKeys() []string {
+	keys := make([]string, 0, len(r.Mismatched))
+	for _, d := range r.Mismatched {
+		keys = append(keys, d.Key)
 	}
-	for _, k := range r.MissingInLeft {
-		seen[k] = struct{}{}
-	}
-	for _, e := range r.Mismatched {
-		seen[e.Key] = struct{}{}
-	}
-	keys := make([]string, 0, len(seen))
-	for k := range seen {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
 	return keys
 }
