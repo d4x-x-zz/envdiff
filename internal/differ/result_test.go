@@ -16,6 +16,13 @@ func TestResult_Clean_WhenMissingRight(t *testing.T) {
 	}
 }
 
+func TestResult_Clean_WhenMissingLeft(t *testing.T) {
+	r := Result{MissingInLeft: []string{"BAR"}}
+	if r.Clean() {
+		t.Error("result with MissingInLeft should not be clean")
+	}
+}
+
 func TestResult_Clean_WhenMismatch(t *testing.T) {
 	r := Result{Mismatched: []MismatchEntry{{Key: "X", LeftValue: "a", RightValue: "b"}}}
 	if r.Clean() {
