@@ -1,56 +1,55 @@
 package differ
 
-// Result holds the diff outcome between two env files.
+// Kind describes the type of difference found between two env maps.
+type Kind string
+
+const (
+	MissingInRight Kind = "missing_right"
+	MissingInLeft  Kind = "missing_left"
+	ValueMismatch  Kind = "value_mismatch"
+)
+
+// Result holds a single difference between two env maps.
 type Result struct {
-	// MissingInRight are keys present in left but absent in right.
-	MissingInRight []string
-	// MissingInLeft are keys present in right but absent in left.
-	MissingInLeft []string
-	// Mismatched are keys present in both files but with different values.
-	Mismatched []MismatchedKey
+	Key      string
+	Kind     Kind
+	LeftVal  string
+	RightVal string
 }
 
-// MismatchedKey captures a key whose value differs between the two files.
-type MismatchedKey struct {
-	Key        string
-	LeftValue  string
-	RightValue string
-}
+// Diff compares two env maps and returns all differences.
+func Diff(left, right map[string]string) []Result {
+	var results []Result
 
-// HasDiff returns true when any difference was found.
-func (r Result) HasDiff() bool {
-	return len(r.MissingInRight) > 0 ||
-		len(r.MissingInLeft) > 0 ||
-		len(r.Mismatched) > 0
-}
-
-// Diff compares two parsed env maps and returns a Result describing
-// all differences. The maps are typically produced by parser.ParseFile.
-func Diff(left, right map[string]string) Result {
-	var result Result
-
-	// Keys in left — check presence and value equality in right.
 	for k, lv := range left {
 		rv, ok := right[k]
 		if !ok {
-			result.MissingInRight = append(result.MissingInRight, k)
+			results = append(results, Result{
+				Key:     k,
+				Kind:    MissingInRight,
+				LeftVal: lv,
+			})
 			continue
 		}
 		if lv != rv {
-			result.Mismatched = append(result.Mismatched, MismatchedKey{
-				Key:        k,
-				LeftValue:  lv,
-				RightValue: rv,
+			results = append(results, Result{
+				Key:      k,
+				Kind:     ValueMismatch,
+				LeftVal:  lv,
+				RightVal: rv,
 			})
 		}
 	}
 
-	// Keys in right that are absent in left.
-	for k := range right {
+	for k, rv := range right {
 		if _, ok := left[k]; !ok {
-			result.MissingInLeft = append(result.MissingInLeft, k)
+			results = append(results, Result{
+				Key:      k,
+				Kind:     MissingInLeft,
+				RightVal: rv,
+			})
 		}
 	}
 
-	return result
+	return results
 }
