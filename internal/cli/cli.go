@@ -1,76 +1,88 @@
 package cli
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"os"
 
-	"github.com/user/envdiff/internal/differ"
-	"github.com/user/envdiff/internal/parser"
-	"github.com/user/envdiff/internal/reporter"
+	"github.com/your-org/envdiff/internal/differ"
+	"github.com/your-org/envdiff/internal/filter"
+	"github.com/your-org/envdiff/internal/parser"
+	"github.com/your-org/envdiff/internal/reporter"
 )
 
-// Config holds parsed CLI flags and arguments.
-type Config struct {
-	Format string
-	Strict bool
-	LeftFile  string
-	RightFile string
+// args holds parsed CLI arguments.
+type args struct {
+	leftFile       string
+	rightFile      string
+	strict         bool
+	format         string
+	onlyMissing    bool
+	onlyMismatched bool
+	keyPrefix      string
 }
 
-// Run parses args and executes the diff workflow.
-func Run(args []string) error {
-	cfg, err := parseArgs(args)
+// Run is the entry point for the CLI.
+func Run(argv []string) int {
+	a, err := parseArgs(argv)
 	if err != nil {
-		return err
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return 2
 	}
 
-	left, err := parser.ParseFile(cfg.LeftFile)
+	left, err := parser.ParseFile(a.leftFile)
 	if err != nil {
-		return fmt.Errorf("reading %s: %w", cfg.LeftFile, err)
+		fmt.Fprintf(os.Stderr, "cannot read %s: %v\n", a.leftFile, err)
+		return 2
 	}
 
-	right, err := parser.ParseFile(cfg.RightFile)
+	right, err := parser.ParseFile(a.rightFile)
 	if err != nil {
-		return fmt.Errorf("reading %s: %w", cfg.RightFile, err)
+		fmt.Fprintf(os.Stderr, "cannot read %s: %v\n", a.rightFile, err)
+		return 2
 	}
 
 	result := differ.Diff(left, right)
 
-	r := reporter.New(os.Stdout, cfg.Format)
-	if err := r.Report(result, cfg.LeftFile, cfg.RightFile); err != nil {
-		return fmt.Errorf("reporting: %w", err)
+	result = filter.Apply(result, filter.Options{
+		OnlyMissing:    a.onlyMissing,
+		OnlyMismatched: a.onlyMismatched,
+		KeyPrefix:      a.keyPrefix,
+	})
+
+	r := reporter.New(os.Stdout, a.format)
+	if err := r.Report(result); err != nil {
+		fmt.Fprintln(os.Stderr, "report error:", err)
+		return 2
 	}
 
-	if cfg.Strict && !result.Clean() {
-		return errors.New("differences found")
+	if a.strict && !result.Clean() {
+		return 1
 	}
-
-	return nil
+	return 0
 }
 
-func parseArgs(args []string) (*Config, error) {
+func parseArgs(argv []string) (args, error) {
 	fs := flag.NewFlagSet("envdiff", flag.ContinueOnError)
+	strict := fs.Bool("strict", false, "exit 1 when differences are found")
 	format := fs.String("format", "text", "output format: text or json")
-	strict := fs.Bool("strict", false, "exit with non-zero status if differences found")
+	onlyMissing := fs.Bool("only-missing", false, "show only missing keys")
+	onlyMismatched := fs.Bool("only-mismatched", false, "show only mismatched values")
+	keyPrefix := fs.String("prefix", "", "filter keys by prefix")
 
-	if err := fs.Parse(args); err != nil {
-		return nil, err
+	if err := fs.Parse(argv); err != nil {
+		return args{}, err
 	}
-
-	if fs.NArg() != 2 {
-		return nil, fmt.Errorf("usage: envdiff [flags] <file1> <file2>")
+	if fs.NArg() < 2 {
+		return args{}, fmt.Errorf("usage: envdiff [flags] <left.env> <right.env>")
 	}
-
-	if *format != "text" && *format != "json" {
-		return nil, fmt.Errorf("unknown format %q: must be text or json", *format)
-	}
-
-	return &Config{
-		Format:    *format,
-		Strict:    *strict,
-		LeftFile:  fs.Arg(0),
-		RightFile: fs.Arg(1),
+	return args{
+		leftFile:       fs.Arg(0),
+		rightFile:      fs.Arg(1),
+		strict:         *strict,
+		format:         *format,
+		onlyMissing:    *onlyMissing,
+		onlyMismatched: *onlyMismatched,
+		keyPrefix:      *keyPrefix,
 	}, nil
 }
