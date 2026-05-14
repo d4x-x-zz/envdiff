@@ -67,3 +67,15 @@ func TestApply_KeyPrefix_NoMatch(t *testing.T) {
 		t.Error("expected clean result when no keys match prefix")
 	}
 }
+
+// TestApply_OnlyMissing_PreservesMissingInLeft checks that OnlyMissing keeps
+// both MissingInRight and MissingInLeft entries, not just one side.
+func TestApply_OnlyMissing_PreservesMissingInLeft(t *testing.T) {
+	res := filter.Apply(makeResult(), filter.Options{OnlyMissing: true})
+	if len(res.MissingInLeft) != 1 {
+		t.Errorf("expected 1 MissingInLeft, got %d", len(res.MissingInLeft))
+	}
+	if res.MissingInLeft[0].Key != "REDIS_URL" {
+		t.Errorf("expected REDIS_URL in MissingInLeft, got %s", res.MissingInLeft[0].Key)
+	}
+}
