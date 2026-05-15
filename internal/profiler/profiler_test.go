@@ -41,11 +41,11 @@ func TestAnalyze_Density(t *testing.T) {
 
 func TestAnalyze_TypeBreakdown(t *testing.T) {
 	env := map[string]string{
-		"BOOL":   "true",
-		"INT":    "42",
-		"FLOAT":  "3.14",
-		"URL":    "https://example.com",
-		"STR":    "hello",
+		"BOOL":  "true",
+		"INT":   "42",
+		"FLOAT": "3.14",
+		"URL":   "https://example.com",
+		"STR":   "hello",
 	}
 	p := Analyze(env, DefaultOptions())
 	if p.TypeBreakdown["bool"] != 1 {
@@ -97,5 +97,18 @@ func TestSortedTypes(t *testing.T) {
 	types := SortedTypes(p)
 	if types[0] != "bool" || types[1] != "int" || types[2] != "string" {
 		t.Errorf("unexpected order: %v", types)
+	}
+}
+
+// TestAnalyze_AllEmpty verifies that density is 0.0 and EmptyValues equals
+// TotalKeys when every value in the map is an empty string.
+func TestAnalyze_AllEmpty(t *testing.T) {
+	env := map[string]string{"A": "", "B": "", "C": ""}
+	p := Analyze(env, DefaultOptions())
+	if p.EmptyValues != 3 {
+		t.Errorf("expected 3 empty values, got %d", p.EmptyValues)
+	}
+	if p.Density != 0.0 {
+		t.Errorf("expected density 0.0, got %f", p.Density)
 	}
 }
