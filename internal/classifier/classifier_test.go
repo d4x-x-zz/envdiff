@@ -78,3 +78,19 @@ func TestClassify_StorageKeys(t *testing.T) {
 		t.Fatalf("expected 2 storage keys, got %d: %v", len(keys), keys)
 	}
 }
+
+func TestClassify_KeyAppearsInOnlyOneCategory(t *testing.T) {
+	// Ensure that a key is not double-classified into multiple categories.
+	env := map[string]string{"DB_HOST": "localhost", "JWT_SECRET": "abc", "HTTP_PORT": "8080"}
+	res := classifier.Classify(env, classifier.DefaultOptions())
+
+	seen := make(map[string]classifier.Category)
+	for cat, keys := range res.Categories {
+		for _, key := range keys {
+			if prev, ok := seen[key]; ok {
+				t.Errorf("key %q appears in both %s and %s", key, prev, cat)
+			}
+			seen[key] = cat
+		}
+	}
+}
