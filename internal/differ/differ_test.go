@@ -1,76 +1,73 @@
-package differ_test
+package differ
 
 import (
+	"sort"
 	"testing"
-
-	"github.com/yourorg/envdiff/internal/differ"
 )
 
 func TestDiff_NoDifferences(t *testing.T) {
-	left := map[string]string{"HOST": "localhost", "PORT": "5432"}
-	right := map[string]string{"HOST": "localhost", "PORT": "5432"}
-
-	result := differ.Diff(left, right)
-
-	if result.HasDiff() {
-		t.Errorf("expected no diff, got %+v", result)
+	left := map[string]string{"A": "1", "B": "2"}
+	right := map[string]string{"A": "1", "B": "2"}
+	res := Diff(left, right)
+	if !res.Clean() {
+		t.Errorf("expected clean result, got %+v", res)
 	}
 }
 
 func TestDiff_MissingInRight(t *testing.T) {
-	left := map[string]string{"HOST": "localhost", "SECRET": "abc"}
-	right := map[string]string{"HOST": "localhost"}
-
-	result := differ.Diff(left, right)
-
-	if len(result.MissingInRight) != 1 || result.MissingInRight[0] != "SECRET" {
-		t.Errorf("expected SECRET missing in right, got %v", result.MissingInRight)
-	}
-	if len(result.MissingInLeft) != 0 {
-		t.Errorf("expected nothing missing in left, got %v", result.MissingInLeft)
+	left := map[string]string{"A": "1", "B": "2"}
+	right := map[string]string{"A": "1"}
+	res := Diff(left, right)
+	if len(res.MissingInRight) != 1 || res.MissingInRight[0] != "B" {
+		t.Errorf("expected B missing in right, got %v", res.MissingInRight)
 	}
 }
 
 func TestDiff_MissingInLeft(t *testing.T) {
-	left := map[string]string{"HOST": "localhost"}
-	right := map[string]string{"HOST": "localhost", "NEW_KEY": "value"}
-
-	result := differ.Diff(left, right)
-
-	if len(result.MissingInLeft) != 1 || result.MissingInLeft[0] != "NEW_KEY" {
-		t.Errorf("expected NEW_KEY missing in left, got %v", result.MissingInLeft)
+	left := map[string]string{"A": "1"}
+	right := map[string]string{"A": "1", "C": "3"}
+	res := Diff(left, right)
+	if len(res.MissingInLeft) != 1 || res.MissingInLeft[0] != "C" {
+		t.Errorf("expected C missing in left, got %v", res.MissingInLeft)
 	}
 }
 
 func TestDiff_MismatchedValues(t *testing.T) {
-	left := map[string]string{"DB_URL": "postgres://old", "PORT": "5432"}
-	right := map[string]string{"DB_URL": "postgres://new", "PORT": "5432"}
-
-	result := differ.Diff(left, right)
-
-	if len(result.Mismatched) != 1 {
-		t.Fatalf("expected 1 mismatch, got %d", len(result.Mismatched))
+	left := map[string]string{"A": "1", "B": "old"}
+	right := map[string]string{"A": "1", "B": "new"}
+	res := Diff(left, right)
+	if len(res.Mismatched) != 1 {
+		t.Fatalf("expected 1 mismatch, got %d", len(res.Mismatched))
 	}
-	m := result.Mismatched[0]
-	if m.Key != "DB_URL" || m.LeftValue != "postgres://old" || m.RightValue != "postgres://new" {
-		t.Errorf("unexpected mismatch entry: %+v", m)
+	m := res.Mismatched[0]
+	if m.Key != "B" || m.LeftValue != "old" || m.RightValue != "new" {
+		t.Errorf("unexpected mismatch: %+v", m)
 	}
 }
 
 func TestDiff_EmptyMaps(t *testing.T) {
-	result := differ.Diff(map[string]string{}, map[string]string{})
-	if result.HasDiff() {
-		t.Error("expected no diff for two empty maps")
+	res := Diff(map[string]string{}, map[string]string{})
+	if !res.Clean() {
+		t.Error("expected clean result for empty maps")
 	}
 }
 
-func TestDiff_HasDiff(t *testing.T) {
-	left := map[string]string{"A": "1"}
-	right := map[string]string{"B": "2"}
+func TestDiff_AllThreeIssues(t *testing.T) {
+	left := map[string]string{"ONLY_LEFT": "x", "SHARED": "old"}
+	right := map[string]string{"ONLY_RIGHT": "y", "SHARED": "new"}
+	res := Diff(left, right)
 
-	result := differ.Diff(left, right)
-
-	if !result.HasDiff() {
-		t.Error("expected HasDiff to return true")
+	if len(res.MissingInRight) != 1 || res.MissingInRight[0] != "ONLY_LEFT" {
+		t.Errorf("MissingInRight: %v", res.MissingInRight)
 	}
+	if len(res.MissingInLeft) != 1 || res.MissingInLeft[0] != "ONLY_RIGHT" {
+		t.Errorf("MissingInLeft: %v", res.MissingInLeft)
+	}
+	if len(res.Mismatched) != 1 {
+		t.Errorf("Mismatched: %v", res.Mismatched)
+	}
+	if res.TotalIssues() != 3 {
+		t.Errorf("TotalIssues: got %d, want 3", res.TotalIssues())
+	}
+	_ = sort.Search // keep import used
 }

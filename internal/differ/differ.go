@@ -1,62 +1,33 @@
+// Package differ compares two env maps and returns a structured result.
 package differ
 
-import "sort"
+// Diff compares left and right env maps and returns a Result describing
+// keys that are missing in either side or have mismatched values.
+func Diff(left, right map[string]string) Result {
+	var result Result
 
-// Kind describes the type of difference found between two env maps.
-type Kind string
-
-const (
-	MissingInRight Kind = "missing_right"
-	MissingInLeft  Kind = "missing_left"
-	ValueMismatch  Kind = "value_mismatch"
-)
-
-// Result holds a single difference between two env maps.
-type Result struct {
-	Key      string
-	Kind     Kind
-	LeftVal  string
-	RightVal string
-}
-
-// Diff compares two env maps and returns all differences.
-// Results are returned in sorted order by key for deterministic output.
-func Diff(left, right map[string]string) []Result {
-	var results []Result
-
+	// Check keys in left
 	for k, lv := range left {
 		rv, ok := right[k]
 		if !ok {
-			results = append(results, Result{
-				Key:     k,
-				Kind:    MissingInRight,
-				LeftVal: lv,
-			})
+			result.MissingInRight = append(result.MissingInRight, k)
 			continue
 		}
 		if lv != rv {
-			results = append(results, Result{
-				Key:      k,
-				Kind:     ValueMismatch,
-				LeftVal:  lv,
-				RightVal: rv,
+			result.Mismatched = append(result.Mismatched, MismatchedKey{
+				Key:        k,
+				LeftValue:  lv,
+				RightValue: rv,
 			})
 		}
 	}
 
-	for k, rv := range right {
+	// Check keys only in right
+	for k := range right {
 		if _, ok := left[k]; !ok {
-			results = append(results, Result{
-				Key:      k,
-				Kind:     MissingInLeft,
-				RightVal: rv,
-			})
+			result.MissingInLeft = append(result.MissingInLeft, k)
 		}
 	}
 
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Key < results[j].Key
-	})
-
-	return results
+	return result
 }
